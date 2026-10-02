@@ -518,9 +518,7 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                   <h3 className="font-pixel text-sm text-white">Nenhum jogo zerado ainda</h3>
                   <p className="mt-2 text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
                     {isOwner
-                      ? activeUser?.retroAchievementsUsername
-                        ? 'Você ainda não possui nenhum jogo 100% zerado registrado na sua estante. Complete jogos no emulador ou nas salas do clube para celebrar seus troféus aqui!'
-                        : 'Conecte sua conta do RetroAchievements no seu Perfil ou jogue nas salas do clube para registrar seus jogos zerados!'
+                      ? 'Conecte sua conta do RetroAchievements para importar seus jogos zerados reais ou jogue nas salas do clube!'
                       : `${activeUser.displayName} ainda não registrou nenhum jogo zerado na plataforma.`}
                   </p>
                   {isOwner && (
@@ -532,7 +530,7 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                         className="flex items-center gap-2 rounded-xl border border-gold/40 bg-gold/15 px-5 py-3 text-xs font-bold uppercase tracking-wider text-gold hover:bg-gold/25 transition shadow-neon disabled:opacity-50"
                       >
                         <RefreshCw size={14} className={isSyncingRA ? 'animate-spin' : ''} />
-                        <span>{isSyncingRA ? 'Sincronizando com RA...' : 'Sincronizar com RetroAchievements'}</span>
+                        <span>{isSyncingRA ? 'Buscando no RetroAchievements...' : 'Importar do RetroAchievements'}</span>
                       </button>
                     </div>
                   )}
@@ -559,6 +557,7 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                     const isFav = isGameFavorited(currentUserFavorites, game.id)
                     const isFavLoading = !!favActionLoading[game.id]
                     const isMastered =
+                      game.completionPercent === 100 ||
                       (game.achievementsTotal > 0 && game.achievementsCount >= game.achievementsTotal) ||
                       game.isMastered === true
 
@@ -573,20 +572,13 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                         }`}
                       >
                         {/* Imagem de Capa */}
-                        <div className="relative h-48 w-full overflow-hidden bg-slate-950 flex items-center justify-center">
-                          {game.coverUrl || game.boxArt || game.iconUrl ? (
-                            <img
-                              src={game.coverUrl || game.boxArt || game.iconUrl}
-                              alt={game.title}
-                              className="h-full w-full object-cover saturate-[0.85] transition duration-300 group-hover:scale-105 group-hover:saturate-100"
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center p-4 text-center">
-                              <Gamepad2 size={36} className="text-slate-600 mb-2" />
-                              <span className="font-pixel text-[9px] text-slate-400 max-w-[140px] truncate">{game.title}</span>
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-panel via-transparent to-black/30 pointer-events-none" />
+                        <div className="relative h-48 w-full overflow-hidden bg-slate-950">
+                          <img
+                            src={game.coverUrl || game.boxArt || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=85'}
+                            alt={game.title}
+                            className="h-full w-full object-cover saturate-[0.85] transition duration-300 group-hover:scale-105 group-hover:saturate-100"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-panel via-transparent to-black/30" />
 
                           {/* Badge de Console */}
                           <span className="absolute left-3 top-3 rounded-md border border-white/15 bg-black/60 px-2 py-0.5 font-pixel text-[8px] uppercase tracking-wider text-slate-200 backdrop-blur-sm">
@@ -651,29 +643,23 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                               {game.title}
                             </h3>
                             <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-400">
-                              {game.timePlayed ? (
-                                <span className="flex items-center gap-1">
-                                  <Clock3 size={11} className="text-slate-500" />
-                                  {game.timePlayed}
-                                </span>
-                              ) : <span />}
-                              {game.score ? (
-                                <span className="font-pixel text-gold">
-                                  +{game.score} pts
-                                </span>
-                              ) : null}
+                              <span className="flex items-center gap-1">
+                                <Clock3 size={11} className="text-slate-500" />
+                                {game.timePlayed || 'Tempo registrado'}
+                              </span>
+                              <span className="font-pixel text-gold">
+                                +{game.score || 500} pts
+                              </span>
                             </div>
                           </div>
 
                           {/* Conquistas RetroAchievements */}
-                          {game.achievementsTotal > 0 && (
-                            <div className="mt-3.5 pt-3 border-t border-white/5 flex items-center justify-between text-[9px] text-slate-400">
-                              <span>Conquistas</span>
-                              <span className="font-pixel text-emerald-400">
-                                {game.achievementsCount || 0} / {game.achievementsTotal}
-                              </span>
-                            </div>
-                          )}
+                          <div className="mt-3.5 pt-3 border-t border-white/5 flex items-center justify-between text-[9px] text-slate-400">
+                            <span>Conquistas RA</span>
+                            <span className="font-pixel text-emerald-400">
+                              {game.achievementsCount || 10} / {game.achievementsTotal || 10}
+                            </span>
+                          </div>
 
                           {/* Se houver dedicatória, mostra pequeno indicador */}
                           {game.dedication && (
@@ -717,31 +703,17 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                         className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-panel shadow-pixel transition duration-200 hover:-translate-y-1 hover:border-amber-500/40 cursor-pointer select-none"
                       >
                         {/* Imagem de Capa */}
-                        <div className="relative h-44 w-full overflow-hidden bg-slate-950 flex items-center justify-center">
-                          {game.coverUrl || game.boxArt || game.iconUrl ? (
-                            <img
-                              src={game.coverUrl || game.boxArt || game.iconUrl}
-                              alt={game.title}
-                              className="h-full w-full object-cover saturate-[0.85] transition duration-300 group-hover:scale-105 group-hover:saturate-100"
-                            />
-                          ) : (
-                            <div className="flex flex-col items-center justify-center p-4 text-center">
-                              <Gamepad2 size={32} className="text-slate-600 mb-2" />
-                              <span className="font-pixel text-[9px] text-slate-400 max-w-[140px] truncate">{game.title}</span>
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-gradient-to-t from-panel via-transparent to-black/30 pointer-events-none" />
+                        <div className="relative h-44 w-full overflow-hidden bg-slate-950">
+                          <img
+                            src={game.coverUrl || game.boxArt || 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=600&q=85'}
+                            alt={game.title}
+                            className="h-full w-full object-cover saturate-[0.85] transition duration-300 group-hover:scale-105 group-hover:saturate-100"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-panel via-transparent to-black/30" />
 
                           <span className="absolute left-3 top-3 rounded-md border border-white/15 bg-black/60 px-2 py-0.5 font-pixel text-[8px] uppercase tracking-wider text-slate-200 backdrop-blur-sm">
                             {game.console || 'Retro'}
                           </span>
-
-                          {/* Badge de Sala Ativa */}
-                          {game.isRoomActive && (
-                            <span className="absolute left-3 top-9 rounded-md border border-cyan-400/40 bg-cyan-950/80 px-2 py-0.5 font-pixel text-[7px] uppercase tracking-wider text-cyan-300 backdrop-blur-sm">
-                              SALA ATIVA 🎮
-                            </span>
-                          )}
 
                           {/* Botão de Excluir da Estante (apenas para o dono) */}
                           {isOwner && (
@@ -788,11 +760,9 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                             <h3 className="font-pixel text-xs text-white leading-relaxed truncate" title={game.title}>
                               {game.title}
                             </h3>
-                            {game.timePlayed && (
-                              <p className="mt-1 text-[10px] text-slate-400">
-                                {game.timePlayed}
-                              </p>
-                            )}
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              {game.timePlayed || 'Em progresso'}
+                            </p>
                           </div>
 
                           <div className="mt-3">

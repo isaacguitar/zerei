@@ -2,7 +2,6 @@ import { collection, doc, getDoc, getDocs, query, setDoc, where } from 'firebase
 import { firestore } from '../../firebaseClient'
 import { getCurrentUser } from '../auth/authService'
 import { fetchUserRetroAchievementsShelf } from '../retro-achievements/retroAchievementsService'
-import { listMyGameRooms } from '../game-room/roomService'
 
 const SHELF_STORAGE_KEY_PREFIX = 'zerei_shelf_'
 
@@ -204,107 +203,48 @@ export async function getUserShelfData(userId, raUsername = null) {
     }
   }
 
-  // 3. Limpeza e particionamento rigoroso: somente jogos 100% ou comprovadamente zerados ficam em beatenGames
-  const reallyBeaten = []
-  const inProgress = Array.isArray(shelf.inProgressGames) ? [...shelf.inProgressGames] : []
+  // 3. Limpeza automática de jogos fictícios (mockups antigos não jogados pelo usuário)
+  const hadMocks =
+    shelf.beatenGames.some(isMockGame) ||
+    shelf.inProgressGames.some(isMockGame) ||
+    shelf.playedGames.some(isMockGame)
 
-  for (const g of (shelf.beatenGames || [])) {
-    if (isMockGame(g)) continue
-    const unlocked = Number(g.achievementsCount || 0)
-    const total = Number(g.achievementsTotal || 0)
-    const is100Percent = (total > 0 && unlocked >= total) || Number(g.completionPercent) >= 100
-    const isActuallyBeaten = is100Percent || g.isBeaten === true || g.beaten === true
-
-    if (isActuallyBeaten) {
-      reallyBeaten.push({
-        ...g,
-        isMastered: is100Percent && total > 0,
-        completionPercent: is100Percent ? 100 : (g.completionPercent || 0),
-        dedication: shelf.dedications[g.id] || g.dedication || '',
-      })
-    } else {
-      // Jogo com conquistas parciais (ex: 4/18, 1/18) pertence à aba "Jogando"
-      inProgress.push({
-        ...g,
-        completionPercent: total > 0 ? Math.round((unlocked / total) * 100) : (g.completionPercent || 0),
-      })
-    }
+  if (hadMocks) {
+    shelf.beatenGames = shelf.beatenGames.filter((g) => !isMockGame(g))
+    shelf.inProgressGames = shelf.inProgressGames.filter((g) => !isMockGame(g))
+    shelf.playedGames = shelf.playedGames.filter((g) => !isMockGame(g))
+    // Salva imediatamente para persistir a exclusão no Firestore e localStorage
+    saveUserShelfData(userId, shelf).catch(() => {})
   }
 
-  // 4. Se o usuário tiver conta do RetroAchievements conectada e as listas precisarem de dados
-  if (raUsername && reallyBeaten.length === 0 && inProgress.length === 0) {
+  // 4. Se o usuário tiver conta do RetroAchievements conectada e as listas estiverem vazias ou precisarem de sync
+  if (raUsername && shelf.beatenGames.length === 0 && shelf.inProgressGames.length === 0) {
     try {
       const raGames = await fetchUserRetroAchievementsShelf(raUsername)
-      if (raGames.beatenGames?.length > 0 || raGames.inProgressGames?.length > 0) {
-        for (const g of (raGames.beatenGames || [])) {
-          const unlocked = Number(g.achievementsCount || 0)
-          const total = Number(g.achievementsTotal || 0)
-          const is100 = (total > 0 && unlocked >= total) || Number(g.completionPercent) >= 100 || g.isMastered
-          if (is100) {
-            reallyBeaten.push({
-              ...g,
-              isMastered: true,
-              dedication: shelf.dedications[g.id] || g.dedication || '',
-            })
-          } else {
-            inProgress.push(g)
-          }
-        }
-        for (const g of (raGames.inProgressGames || [])) {
-          inProgress.push(g)
-        }
+      if (raGames.beatenGames.length > 0 || raGames.inProgressGames.length > 0) {
+        // Enriquecer com dedicatórias existentes
+        const enrichedBeaten = raGames.beatenGames.map((g) => ({
+          ...g,
+          dedication: shelf.dedications[g.id] || g.dedication || '',
+        }))
+        shelf.beatenGames = enrichedBeaten
+        shelf.inProgressGames = raGames.inProgressGames
+        shelf.playedGames = [...shelf.beatenGames, ...shelf.inProgressGames]
+
+        // Salva para persistir
+        setLocalData(`${SHELF_STORAGE_KEY_PREFIX}${userId}`, shelf)
       }
     } catch (err) {
       console.warn('Erro ao puxar dados da estante do RA:', err)
     }
   }
 
-  // 5. Incluir jogos com salas ativas ou abertas na aba "Jogando" (sem duplicar)
-  try {
-    const activeRooms = await listMyGameRooms()
-    if (Array.isArray(activeRooms)) {
-      for (const room of activeRooms) {
-        if (!room.gameTitle) continue
-        const rId = String(room.retroAchievementsId || room.id || room.gameTitle)
-        const titleNormalized = room.gameTitle.trim().toLowerCase()
-        const alreadyInBeaten = reallyBeaten.some((g) => String(g.id) === rId || (g.title && g.title.trim().toLowerCase() === titleNormalized))
-        const alreadyInProgress = inProgress.some((g) => String(g.id) === rId || (g.title && g.title.trim().toLowerCase() === titleNormalized))
+  // Aplicar dedicatórias salvas em cada jogo de beatenGames
+  shelf.beatenGames = shelf.beatenGames.map((g) => ({
+    ...g,
+    dedication: shelf.dedications[g.id] || g.dedication || '',
+  }))
 
-        if (!alreadyInBeaten && !alreadyInProgress) {
-          inProgress.push({
-            id: rId,
-            title: room.gameTitle,
-            console: room.gameConsole || 'Retro',
-            coverUrl: room.gameCoverUrl || null,
-            timePlayed: 'Em andamento na sala',
-            completionPercent: 0,
-            achievementsCount: 0,
-            achievementsTotal: 0,
-            isRoomActive: true,
-            roomId: room.id,
-          })
-        }
-      }
-    }
-  } catch {}
-
-  // Desduplica inProgress garantindo um único card por jogo
-  const seenInProgress = new Set()
-  const uniqueInProgress = []
-  for (const g of inProgress) {
-    if (isMockGame(g)) continue
-    const titleKey = (g.title || g.id || '').trim().toLowerCase()
-    if (!titleKey || seenInProgress.has(titleKey)) continue
-    seenInProgress.add(titleKey)
-    uniqueInProgress.push(g)
-  }
-
-  shelf.beatenGames = reallyBeaten
-  shelf.inProgressGames = uniqueInProgress
-  shelf.playedGames = [...reallyBeaten, ...uniqueInProgress]
-
-  // Salva no cache local para persistir a nova organização correta
-  setLocalData(`${SHELF_STORAGE_KEY_PREFIX}${userId}`, shelf)
   return shelf
 }
 
@@ -431,7 +371,7 @@ export async function toggleFavoriteGame(game) {
         id: String(game.id),
         title: game.title,
         console: game.console || game.consoleName || 'Retro',
-        coverUrl: game.coverUrl || game.imageBoxArt || game.iconUrl || null,
+        coverUrl: game.coverUrl || game.imageBoxArt || game.iconUrl || 'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?auto=format&fit=crop&w=600&q=85',
         favoritedAt: Date.now(),
       },
     ]

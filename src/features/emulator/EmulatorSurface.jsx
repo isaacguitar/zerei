@@ -45,36 +45,6 @@ const buttonByKey = {
   w: 11,
 }
 
-const GAMEPAD_BUTTON_MAP = {
-  0: 0,  // Face inferior (A no Xbox, X no PS) -> Libretro B (0)
-  1: 8,  // Face direita (B no Xbox, Círculo no PS) -> Libretro A (8)
-  2: 1,  // Face esquerda (X no Xbox, Quadrado no PS) -> Libretro Y (1)
-  3: 9,  // Face superior (Y no Xbox, Triângulo no PS) -> Libretro X (9)
-  4: 10, // LB / L1 -> Libretro L (10)
-  5: 11, // RB / R1 -> Libretro R (11)
-  6: 12, // LT / L2 -> Libretro L2 (12)
-  7: 13, // RT / R2 -> Libretro R2 (13)
-  8: 2,  // Select / Back / Share -> Libretro SELECT (2)
-  9: 3,  // Start / Options / Menu -> Libretro START (3)
-  10: 14, // L3 -> Libretro L3 (14)
-  11: 15, // R3 -> Libretro R3 (15)
-  12: 4,  // D-pad Cima -> Libretro UP (4)
-  13: 5,  // D-pad Baixo -> Libretro DOWN (5)
-  14: 6,  // D-pad Esquerda -> Libretro LEFT (6)
-  15: 7,  // D-pad Direita -> Libretro RIGHT (7)
-}
-
-function mapAxesToButtons(axes, deadzone = 0.45) {
-  const buttons = new Set()
-  if (!Array.isArray(axes) || axes.length < 2) return buttons
-  const [x, y] = axes
-  if (x < -deadzone) buttons.add(6) // LEFT
-  if (x > deadzone) buttons.add(7)  // RIGHT
-  if (y < -deadzone) buttons.add(4) // UP
-  if (y > deadzone) buttons.add(5)  // DOWN
-  return buttons
-}
-
 function isTextEntryEvent(event) {
   const selector = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
   const activeElement = document.activeElement
@@ -117,7 +87,6 @@ export default function EmulatorSurface({
   const sampleRateRef = useRef(44100)
   const nextAudioTimeRef = useRef(0)
   const pressedKeysRef = useRef(new Set())
-  const pressedGamepadButtonsRef = useRef(new Set())
   const romHashRef = useRef(null)
   const stateRevisionRef = useRef(0)
   const sramRevisionRef = useRef(0)
@@ -176,15 +145,7 @@ export default function EmulatorSurface({
       const source = context.createBufferSource()
       source.buffer = buffer
       source.connect(gain)
-
-      const currentTime = context.currentTime
-      if (nextAudioTimeRef.current < currentTime) {
-        nextAudioTimeRef.current = currentTime + 0.03
-      } else if (nextAudioTimeRef.current > currentTime + 0.12) {
-        nextAudioTimeRef.current = currentTime + 0.04
-      }
-
-      const startAt = nextAudioTimeRef.current
+      const startAt = Math.max(context.currentTime + 0.02, nextAudioTimeRef.current)
       source.start(startAt)
       nextAudioTimeRef.current = startAt + buffer.duration
     })
@@ -323,87 +284,6 @@ export default function EmulatorSurface({
       releaseInputs()
     }
   }, [emulatorState.running])
-
-  // Polling em tempo real de gamepads físicos com suporte a hotplug
-  useEffect(() => {
-    if (!emulatorState.running) return undefined
-
-    let animationFrameId = null
-    let active = true
-
-    function releaseGamepadInputs() {
-      if (pressedGamepadButtonsRef.current.size > 0) {
-        pressedGamepadButtonsRef.current.forEach((buttonId) => {
-          window.zereiNative?.sendInput?.(buttonId, false)
-        })
-        pressedGamepadButtonsRef.current.clear()
-      }
-    }
-
-    function pollGamepad() {
-      if (!active) return
-
-      const gamepads = typeof navigator.getGamepads === 'function' ? navigator.getGamepads() : []
-      let activeGamepad = null
-      for (let i = 0; i < gamepads.length; i++) {
-        if (gamepads[i] && gamepads[i].connected) {
-          activeGamepad = gamepads[i]
-          break
-        }
-      }
-
-      if (activeGamepad) {
-        const currentlyPressed = new Set()
-
-        // 1. Mapeamento de botões físicos W3C
-        activeGamepad.buttons.forEach((btn, index) => {
-          if (btn && (btn.pressed || btn.value > 0.45)) {
-            const mapped = GAMEPAD_BUTTON_MAP[index]
-            if (mapped !== undefined) currentlyPressed.add(mapped)
-          }
-        })
-
-        // 2. Mapeamento dos analógicos com filtragem de deadzone
-        const stickButtons = mapAxesToButtons(activeGamepad.axes, 0.45)
-        stickButtons.forEach((btn) => currentlyPressed.add(btn))
-
-        // Envia sinais para botões recém-pressionados
-        currentlyPressed.forEach((buttonId) => {
-          if (!pressedGamepadButtonsRef.current.has(buttonId)) {
-            window.zereiNative?.sendInput?.(buttonId, true)
-          }
-        })
-
-        // Envia sinais de liberação para botões soltos
-        pressedGamepadButtonsRef.current.forEach((buttonId) => {
-          if (!currentlyPressed.has(buttonId)) {
-            window.zereiNative?.sendInput?.(buttonId, false)
-          }
-        })
-
-        pressedGamepadButtonsRef.current = currentlyPressed
-      } else {
-        releaseGamepadInputs()
-      }
-
-      animationFrameId = requestAnimationFrame(pollGamepad)
-    }
-
-    animationFrameId = requestAnimationFrame(pollGamepad)
-
-    const onGamepadDisconnected = () => releaseGamepadInputs()
-    window.addEventListener('gamepaddisconnected', onGamepadDisconnected)
-    window.addEventListener('blur', releaseGamepadInputs)
-
-    return () => {
-      active = false
-      if (animationFrameId) cancelAnimationFrame(animationFrameId)
-      window.removeEventListener('gamepaddisconnected', onGamepadDisconnected)
-      window.removeEventListener('blur', releaseGamepadInputs)
-      releaseGamepadInputs()
-    }
-  }, [emulatorState.running])
-
 
   useEffect(() => () => {
     const native = window.zereiNative

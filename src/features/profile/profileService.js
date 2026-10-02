@@ -138,6 +138,10 @@ export async function connectRetroAchievements(userId, { username, points = 0, r
     } catch {}
   }
 
+  logActivity({
+    action: `conectou sua conta do RetroAchievements (${trimmed})`,
+  }).catch(() => {})
+
   return raData
 }
 
