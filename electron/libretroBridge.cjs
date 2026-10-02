@@ -564,11 +564,15 @@ class LibretroSession {
         }
       }
 
-      // Agenda próxima iteração de forma elástica para evitar 100% de uso de CPU
-      const delay = targetDelta === 0
-        ? 0
-        : Math.max(1, Math.floor((targetDelta - (performance.now() - this.lastFrameTime)) * 0.7))
-      this.loopTimer = setTimeout(step, delay)
+      // Agenda próxima iteração com alta fidelidade temporal no Windows
+      const remaining = targetDelta === 0 ? 0 : targetDelta - (performance.now() - this.lastFrameTime)
+      if (remaining <= 2) {
+        this.loopTimer = setImmediate(step)
+      } else if (remaining > 12) {
+        this.loopTimer = setTimeout(step, Math.floor(remaining - 4))
+      } else {
+        this.loopTimer = setImmediate(step)
+      }
     }
 
     step()
@@ -591,6 +595,7 @@ class LibretroSession {
     this.isPaused = false
     if (this.loopTimer) {
       clearTimeout(this.loopTimer)
+      clearImmediate(this.loopTimer)
       this.loopTimer = null
     }
     this.retroAchievementsRuntime?.unloadGame()

@@ -182,10 +182,10 @@ export async function awardXp(userId, amount, reason, metadata = {}) {
     totalXp: newXp,
   })
 
-  // Se subiu de nível, registra no feed de atividades da comunidade
-  if (leveledUp) {
+  // Só registra marcos raros e expressivos no Feed (ex: Nível 20, 30, 40...)
+  if (leveledUp && newLevelInfo.level >= 20 && newLevelInfo.level % 10 === 0) {
     logActivity({
-      action: `subiu para o Nível ${newLevelInfo.level} (${newLevelInfo.rank})!`,
+      action: `alcançou o marco épico do Nível ${newLevelInfo.level} (${newLevelInfo.rank})! 🌟`,
     }).catch(() => {})
   }
 

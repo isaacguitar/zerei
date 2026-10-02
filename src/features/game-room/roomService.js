@@ -181,12 +181,14 @@ export async function createGameRoom({
     }
   }
 
-  await logActivity({
-    type: 'room_created',
-    action: clubId ? `abriu uma nova sala de jogo no clube ${clubName || ''}` : `iniciou uma jogatina avulsa de ${gameTitle || 'Retrô'}`,
-    target: finalTitle,
-    icon: '🎮',
-  }).catch(() => {})
+  if (clubId && clubName) {
+    await logActivity({
+      type: 'room_created',
+      action: `abriu uma nova sala de jogo no clube ${clubName}`,
+      target: finalTitle,
+      icon: '🎮',
+    }).catch(() => {})
+  }
 
   return { id: roomRef.id, ...roomData }
 }
