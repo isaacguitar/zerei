@@ -5,9 +5,34 @@
  * Exibido automaticamente para o jogador quando uma nova versão é iniciada.
  */
 
-export const CURRENT_APP_VERSION = '1.0.3'
+export const CURRENT_APP_VERSION = '1.0.4'
 
 export const CHANGELOG_HISTORY = {
+  '1.0.4': {
+    version: '1.0.4',
+    date: '02 de Outubro de 2026',
+    title: 'Exclusão de Posts no Feed e Estante RA Aperfeiçoada',
+    highlights: [
+      {
+        tag: 'NOVIDADE',
+        color: 'emerald',
+        title: 'Exclusão de Publicações no Feed',
+        description: 'Menu discreto de três pontinhos em suas publicações para apagar postagens antigas com facilidade.',
+      },
+      {
+        tag: 'AJUSTE',
+        color: 'cyan',
+        title: 'Estante 100% Sincronizada com RA',
+        description: 'Detecção automática e consistente da sua conta vinculada do RetroAchievements, sem avisos de importação indevidos.',
+      },
+      {
+        tag: 'MELHORIA',
+        color: 'gold',
+        title: 'Indicador de Versão na Barra Lateral',
+        description: 'Exibição discreta da versão do executável na parte inferior do menu lateral para facilitar o acompanhamento de atualizações.',
+      },
+    ],
+  },
   '1.0.3': {
     version: '1.0.3',
     date: '02 de Outubro de 2026',
@@ -18,18 +43,6 @@ export const CHANGELOG_HISTORY = {
         color: 'cyan',
         title: 'Indicador de Versão na Barra Lateral',
         description: 'Exibição discreta da versão do executável na parte inferior do menu lateral para facilitar o acompanhamento de atualizações.',
-      },
-      {
-        tag: 'MELHORIA',
-        color: 'emerald',
-        title: 'Áudio e Vídeo Sem Travamentos',
-        description: 'Sincronização de alta fidelidade e buffer adaptativo eliminando slow downs e chiados/estalos no som.',
-      },
-      {
-        tag: 'RECURSO',
-        color: 'gold',
-        title: 'Hotplug de Gamepad em Tempo Real',
-        description: 'Ligue ou conecte seu controle USB ou Bluetooth no meio da partida sem precisar reiniciar ou pausar a emulação.',
       },
     ],
   },

@@ -481,6 +481,7 @@ export default function App() {
         <Suspense fallback={<Loader label="Carregando estante de jogos..." />}>
           <ShelfPage
             targetUser={shelfTargetUser}
+            currentUser={effectiveUser}
             onBack={() => {
               setShelfTargetUser(null)
               setActiveView('dashboard')

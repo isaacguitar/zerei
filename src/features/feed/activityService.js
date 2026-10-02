@@ -412,3 +412,28 @@ export async function logActivity({
     console.warn('Erro ao registrar atividade:', error)
   }
 }
+
+/**
+ * Exclui uma publicação do Feed (apenas o próprio autor ou admin da plataforma)
+ */
+export async function deleteFeedPost(activityId) {
+  if (!activityId) throw new Error('ID da atividade não especificado.')
+  const user = getCurrentUser()
+  if (!user?.id) throw new Error('Faça login para excluir uma publicação.')
+  if (!firestore) throw new Error('Firestore indisponível.')
+
+  const postRef = doc(firestore, 'activities', activityId)
+  const snap = await getDoc(postRef)
+  if (!snap.exists()) return
+
+  const data = snap.data()
+  const isAuthor = String(data.authorId) === String(user.id)
+  const isAdmin = user.email?.toLowerCase() === 'isaacfernandoguitar@gmail.com'
+
+  if (!isAuthor && !isAdmin) {
+    throw new Error('Você só pode excluir suas próprias publicações.')
+  }
+
+  await deleteDoc(postRef)
+}
+

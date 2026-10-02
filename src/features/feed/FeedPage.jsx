@@ -18,6 +18,8 @@ import {
   Share2,
   Shield,
   Sparkles,
+  MoreVertical,
+  Trash2,
   Trophy,
   Users,
   X,
@@ -27,6 +29,7 @@ import { getCurrentUser } from '../auth/authService'
 import {
   addCommentToFeedPost,
   createFeedPost,
+  deleteFeedPost,
   isPostVisibleToUser,
   subscribeToFeed,
   subscribeToFeedPostComments,
@@ -167,6 +170,25 @@ export default function FeedPage({
   const [myScreenshots, setMyScreenshots] = useState([])
   const [submittingPost, setSubmittingPost] = useState(false)
   const [postSuccessNotice, setPostSuccessNotice] = useState(false)
+  const [activeMenuPostId, setActiveMenuPostId] = useState(null)
+
+  useEffect(() => {
+    if (!activeMenuPostId) return
+    const handleClickOutside = () => setActiveMenuPostId(null)
+    window.addEventListener('click', handleClickOutside)
+    return () => window.removeEventListener('click', handleClickOutside)
+  }, [activeMenuPostId])
+
+  async function handleDeletePost(postId) {
+    if (!window.confirm('Tem certeza de que deseja excluir esta publicação?')) return
+    setActiveMenuPostId(null)
+    setFeed((prev) => prev.filter((p) => p.id !== postId))
+    try {
+      await deleteFeedPost(postId)
+    } catch (err) {
+      alert('Erro ao excluir publicação: ' + (err.message || 'Tente novamente.'))
+    }
+  }
 
   const currentUser = getCurrentUser()
 
@@ -479,6 +501,11 @@ export default function FeedPage({
               (Array.isArray(item.reactions?.['❤️']) ? item.reactions['❤️'].length : 0)
 
             const commentsOpen = Boolean(expandedComments[item.id])
+            const isMyPost = Boolean(
+              currentUser?.id &&
+              (String(item.authorId) === String(currentUser.id) ||
+               currentUser.email?.toLowerCase() === 'isaacfernandoguitar@gmail.com')
+            )
 
             return (
               <article
@@ -531,11 +558,45 @@ export default function FeedPage({
                     </div>
                   </div>
 
-                  {item.gameTitle && (
-                    <span className="shrink-0 rounded-xl bg-slate-950 border border-white/10 px-2.5 py-1 font-pixel text-[8px] uppercase tracking-wider text-slate-300">
-                      {item.gameTitle}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {item.gameTitle && (
+                      <span className="shrink-0 rounded-xl bg-slate-950 border border-white/10 px-2.5 py-1 font-pixel text-[8px] uppercase tracking-wider text-slate-300">
+                        {item.gameTitle}
+                      </span>
+                    )}
+
+                    {isMyPost && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActiveMenuPostId((prev) => (prev === item.id ? null : item.id))
+                          }}
+                          className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                          title="Opções da publicação"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+
+                        {activeMenuPostId === item.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-full mt-1 z-30 min-w-[160px] rounded-xl border border-white/10 bg-slate-950/95 p-1 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePost(item.id)}
+                              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 transition text-left cursor-pointer"
+                            >
+                              <Trash2 size={13} />
+                              <span>Excluir publicação</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Texto do Post */}

@@ -32,8 +32,4 @@ contextBridge.exposeInMainWorld('zereiNative', {
   windowMinimize: () => ipcRenderer.send('window:minimize'),
   windowMaximize: () => ipcRenderer.send('window:maximize'),
   windowClose: () => ipcRenderer.send('window:close'),
-  getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
-  onUpdaterStatus: (callback) => subscribe('updater:status', callback),
-  installUpdate: () => ipcRenderer.invoke('updater:install'),
-  checkUpdate: () => ipcRenderer.invoke('updater:check'),
 })

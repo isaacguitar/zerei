@@ -8,12 +8,15 @@ import {
   Lock,
   Maximize2,
   MessageSquare,
+  MoreVertical,
+  Trash2,
   Sparkles,
   Trophy,
   Users,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
+  deleteFeedPost,
   isPostVisibleToUser,
   subscribeToFeed,
   toggleFeedLike,
@@ -33,8 +36,27 @@ export default function ActivityFeed({
   const [filter, setFilter] = useState('all') // 'all' | 'screenshots' | 'achievements' | 'invites'
   const [friendIds, setFriendIds] = useState([])
   const [clubIds, setClubIds] = useState([])
+  const [activeMenuPostId, setActiveMenuPostId] = useState(null)
 
   const currentUser = getCurrentUser()
+
+  useEffect(() => {
+    if (!activeMenuPostId) return
+    const handleClickOutside = () => setActiveMenuPostId(null)
+    window.addEventListener('click', handleClickOutside)
+    return () => window.removeEventListener('click', handleClickOutside)
+  }, [activeMenuPostId])
+
+  async function handleDeletePost(postId) {
+    if (!window.confirm('Tem certeza de que deseja excluir esta publicação?')) return
+    setActiveMenuPostId(null)
+    setFeed((prev) => prev.filter((p) => p.id !== postId))
+    try {
+      await deleteFeedPost(postId)
+    } catch (err) {
+      alert('Erro ao excluir publicação: ' + (err.message || 'Tente novamente.'))
+    }
+  }
 
   useEffect(() => {
     const unsub = subscribeToFeed(setFeed, { maxItems: 50 })
@@ -229,6 +251,12 @@ export default function ActivityFeed({
               ? 'convidou para o clube'
               : item.action || 'publicou'
 
+            const isMyPost = Boolean(
+              currentUser?.id &&
+              (String(item.authorId) === String(currentUser.id) ||
+               currentUser.email?.toLowerCase() === 'isaacfernandoguitar@gmail.com')
+            )
+
             return (
               <article
                 key={item.id}
@@ -269,11 +297,45 @@ export default function ActivityFeed({
                     </div>
                   </div>
 
-                  {item.gameTitle && (
-                    <span className="rounded bg-slate-900 border border-white/10 px-1.5 py-0.5 font-pixel text-[7.5px] uppercase tracking-wider text-slate-400 truncate max-w-[100px]">
-                      {item.gameTitle}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {item.gameTitle && (
+                      <span className="rounded bg-slate-900 border border-white/10 px-1.5 py-0.5 font-pixel text-[7.5px] uppercase tracking-wider text-slate-400 truncate max-w-[100px]">
+                        {item.gameTitle}
+                      </span>
+                    )}
+
+                    {isMyPost && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActiveMenuPostId((prev) => (prev === item.id ? null : item.id))
+                          }}
+                          className="rounded p-1 text-slate-500 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                          title="Opções da publicação"
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+
+                        {activeMenuPostId === item.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-full mt-1 z-30 min-w-[130px] rounded-xl border border-white/10 bg-slate-950/95 p-1 shadow-2xl backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePost(item.id)}
+                              className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-bold text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 transition text-left cursor-pointer"
+                            >
+                              <Trash2 size={12} />
+                              <span>Excluir</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Texto da publicação (se houver e não for foto) */}

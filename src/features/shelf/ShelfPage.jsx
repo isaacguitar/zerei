@@ -20,6 +20,8 @@ import {
   X,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { doc, getDoc } from 'firebase/firestore'
+import { firestore } from '../../firebaseClient'
 import { getCurrentUser } from '../auth/authService'
 import { fetchUserRetroAchievementsShelf, searchRetroAchievementsGames } from '../retro-achievements/retroAchievementsService'
 import RetroAchievementsConnectModal from '../retro-achievements/RetroAchievementsConnectModal'
@@ -36,13 +38,18 @@ import {
   updateGameDedication,
 } from './shelfService'
 
-export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom }) {
-  const currentUser = getCurrentUser()
+export default function ShelfPage({ targetUser = null, currentUser: propCurrentUser = null, onBack, onOpenGameRoom }) {
+  const fallbackUser = getCurrentUser()
+  const currentUser = propCurrentUser || fallbackUser
   const activeUser = targetUser || currentUser
   const isOwner =
     !targetUser ||
     targetUser.id === currentUser?.id ||
     (currentUser?.displayName && targetUser.displayName === currentUser?.displayName)
+
+  const [linkedRaUsername, setLinkedRaUsername] = useState(
+    activeUser?.retroAchievementsUsername || currentUser?.retroAchievementsUsername || ''
+  )
 
   const [shelf, setShelf] = useState({
     beatenGames: [],
@@ -85,11 +92,34 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
 
     async function load() {
       try {
+        let raUser = linkedRaUsername || activeUser?.retroAchievementsUsername || currentUser?.retroAchievementsUsername || ''
+        if (!raUser && activeUser?.id && firestore) {
+          try {
+            const snap = await getDoc(doc(firestore, 'users', activeUser.id))
+            if (snap.exists() && snap.data()?.retroAchievementsUsername) {
+              raUser = snap.data().retroAchievementsUsername
+              setLinkedRaUsername(raUser)
+            }
+          } catch {}
+        }
+        if (!raUser && typeof window !== 'undefined') {
+          const session = window.localStorage.getItem('zerei.session')
+          if (session) {
+            try {
+              const parsed = JSON.parse(session)
+              if (parsed?.user?.retroAchievementsUsername) {
+                raUser = parsed.user.retroAchievementsUsername
+                setLinkedRaUsername(raUser)
+              }
+            } catch {}
+          }
+        }
+
         const targetLookupKey = activeUser?.id || activeUser?.displayName
         const myLookupKey = currentUser?.id || currentUser?.displayName
         const [targetData, myData] = await Promise.all([
-          getUserShelfData(targetLookupKey, activeUser?.retroAchievementsUsername),
-          isOwner ? Promise.resolve(null) : getUserShelfData(myLookupKey, currentUser?.retroAchievementsUsername),
+          getUserShelfData(targetLookupKey, raUser),
+          isOwner ? Promise.resolve(null) : getUserShelfData(myLookupKey, currentUser?.retroAchievementsUsername || raUser),
         ])
 
         if (!cancelled) {
@@ -111,7 +141,7 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
     return () => {
       cancelled = true
     }
-  }, [activeUser?.id, activeUser?.retroAchievementsUsername, currentUser?.id, currentUser?.retroAchievementsUsername, isOwner])
+  }, [activeUser?.id, activeUser?.retroAchievementsUsername, currentUser?.id, currentUser?.retroAchievementsUsername, linkedRaUsername, isOwner])
 
   // Busca em tempo real de jogos quando o modal de pesquisa estiver aberto
   useEffect(() => {
@@ -304,7 +334,17 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
   }
 
   async function handleSyncWithRetroAchievements() {
-    const raUsername = activeUser?.retroAchievementsUsername || currentUser?.retroAchievementsUsername
+    let raUsername = linkedRaUsername || activeUser?.retroAchievementsUsername || currentUser?.retroAchievementsUsername
+    if (!raUsername && activeUser?.id && firestore) {
+      try {
+        const snap = await getDoc(doc(firestore, 'users', activeUser.id))
+        if (snap.exists() && snap.data()?.retroAchievementsUsername) {
+          raUsername = snap.data().retroAchievementsUsername
+          setLinkedRaUsername(raUsername)
+        }
+      } catch {}
+    }
+
     if (!raUsername) {
       setIsRAConnectModalOpen(true)
       return
@@ -516,23 +556,46 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
                 <div className="rounded-3xl border border-white/5 bg-panel p-12 text-center">
                   <Trophy size={40} className="mx-auto text-slate-600 mb-3" />
                   <h3 className="font-pixel text-sm text-white">Nenhum jogo zerado ainda</h3>
-                  <p className="mt-2 text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-                    {isOwner
-                      ? 'Conecte sua conta do RetroAchievements para importar seus jogos zerados reais ou jogue nas salas do clube!'
-                      : `${activeUser.displayName} ainda não registrou nenhum jogo zerado na plataforma.`}
-                  </p>
-                  {isOwner && (
-                    <div className="mt-6 flex justify-center">
-                      <button
-                        type="button"
-                        onClick={handleSyncWithRetroAchievements}
-                        disabled={isSyncingRA}
-                        className="flex items-center gap-2 rounded-xl border border-gold/40 bg-gold/15 px-5 py-3 text-xs font-bold uppercase tracking-wider text-gold hover:bg-gold/25 transition shadow-neon disabled:opacity-50"
-                      >
-                        <RefreshCw size={14} className={isSyncingRA ? 'animate-spin' : ''} />
-                        <span>{isSyncingRA ? 'Buscando no RetroAchievements...' : 'Importar do RetroAchievements'}</span>
-                      </button>
+                  {Boolean(linkedRaUsername) ? (
+                    <div className="mt-2 text-xs text-slate-400 max-w-md mx-auto leading-relaxed space-y-3">
+                      <p>
+                        {isOwner
+                          ? 'Sua conta do RetroAchievements está vinculada. Quando você zerar um jogo ou completar todas as suas conquistas no RetroAchievements ou nas salas do clube, ele aparecerá aqui com seu troféu de campeão!'
+                          : `${activeUser.displayName} ainda não registrou nenhum jogo zerado na plataforma.`}
+                      </p>
+                      {isOwner && (
+                        <div className="pt-2 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('inProgress')}
+                            className="inline-flex items-center gap-2 rounded-xl border border-synthwave/40 bg-synthwave/15 px-4 py-2 text-xs font-bold text-purple-200 hover:bg-synthwave/25 transition cursor-pointer"
+                          >
+                            <Gamepad2 size={14} />
+                            <span>Ver jogos em andamento ({shelf.inProgressGames.length})</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                        {isOwner
+                          ? 'Conecte sua conta do RetroAchievements para sincronizar seus jogos reais ou jogue nas salas do clube!'
+                          : `${activeUser.displayName} ainda não registrou nenhum jogo zerado na plataforma.`}
+                      </p>
+                      {isOwner && (
+                        <div className="mt-6 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setIsRAConnectModalOpen(true)}
+                            className="flex items-center gap-2 rounded-xl border border-gold/40 bg-gold/15 px-5 py-3 text-xs font-bold uppercase tracking-wider text-gold hover:bg-gold/25 transition shadow-neon"
+                          >
+                            <Sparkles size={14} />
+                            <span>Vincular RetroAchievements</span>
+                          </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ) : (
@@ -1109,6 +1172,7 @@ export default function ShelfPage({ targetUser = null, onBack, onOpenGameRoom })
           userProfile={currentUser}
           onConnected={(savedData) => {
             setIsRAConnectModalOpen(false)
+            setLinkedRaUsername(savedData.retroAchievementsUsername)
             if (activeUser) {
               activeUser.retroAchievementsUsername = savedData.retroAchievementsUsername
             }
