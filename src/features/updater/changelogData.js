@@ -5,9 +5,34 @@
  * Exibido automaticamente para o jogador quando uma nova versão é iniciada.
  */
 
-export const CURRENT_APP_VERSION = '1.0.2'
+export const CURRENT_APP_VERSION = '1.0.3'
 
 export const CHANGELOG_HISTORY = {
+  '1.0.3': {
+    version: '1.0.3',
+    date: '02 de Outubro de 2026',
+    title: 'Identificador de Versão Ativa e Atualizações Estáveis',
+    highlights: [
+      {
+        tag: 'NOVIDADE',
+        color: 'cyan',
+        title: 'Indicador de Versão na Barra Lateral',
+        description: 'Exibição discreta da versão do executável na parte inferior do menu lateral para facilitar o acompanhamento de atualizações.',
+      },
+      {
+        tag: 'MELHORIA',
+        color: 'emerald',
+        title: 'Áudio e Vídeo Sem Travamentos',
+        description: 'Sincronização de alta fidelidade e buffer adaptativo eliminando slow downs e chiados/estalos no som.',
+      },
+      {
+        tag: 'RECURSO',
+        color: 'gold',
+        title: 'Hotplug de Gamepad em Tempo Real',
+        description: 'Ligue ou conecte seu controle USB ou Bluetooth no meio da partida sem precisar reiniciar ou pausar a emulação.',
+      },
+    ],
+  },
   '1.0.2': {
     version: '1.0.2',
     date: '02 de Outubro de 2026',

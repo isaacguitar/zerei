@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { Activity, Archive, ChevronLeft, ChevronRight, Download, FolderSearch, Gamepad2, LayoutDashboard, Lightbulb, LogOut, ShieldCheck, Trophy, Users } from 'lucide-react'
 import { getCurrentUser } from '../../features/auth/authService'
 import { getLevelInfo } from '../../features/gamification/xpService'
 import { isAdminUser } from '../../features/admin/adminService'
 import { isNativeEnvironment } from '../../features/emulator/romLibraryService'
+import { CURRENT_APP_VERSION } from '../../features/updater/changelogData'
 import ProgressBar from '../ui/ProgressBar'
 
 const navigationItems = [
@@ -35,6 +37,17 @@ export default function Sidebar({
   const isAuthenticated = Boolean(profile?.id)
   const effectiveProfile = profile || { displayName: 'Visitante' }
   const levelInfo = getLevelInfo(effectiveProfile.xp || 0)
+  const [appVersion, setAppVersion] = useState(CURRENT_APP_VERSION)
+
+  useEffect(() => {
+    let active = true
+    if (typeof window !== 'undefined' && window.zereiNative?.getAppVersion) {
+      window.zereiNative.getAppVersion().then((ver) => {
+        if (active && ver) setAppVersion(ver)
+      }).catch(() => {})
+    }
+    return () => { active = false }
+  }, [])
 
   const handleNavClick = (label) => {
     if (label !== 'Visão geral' && label !== 'Baixar App' && !isAuthenticated) {
@@ -233,6 +246,28 @@ export default function Sidebar({
             {!collapsed && <span className="truncate">Amigos</span>}
           </button>
         </div>
+      </div>
+
+      {/* Indicador discreto da versão atual do app / .exe */}
+      <div className={`mt-auto pt-6 ${collapsed ? 'text-center' : 'px-2'}`}>
+        {!collapsed ? (
+          <div className="flex items-center justify-between text-[10px] text-slate-500 font-pixel tracking-wider">
+            <span
+              className="flex items-center gap-1.5 text-slate-400/80 hover:text-slate-200 transition cursor-default select-none"
+              title={`ZEREI! Desktop v${appVersion}`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/80 shadow-[0_0_6px_rgba(16,185,129,0.5)]" />
+              v{appVersion}
+            </span>
+            <span className="text-[9px] text-slate-600 uppercase select-none">
+              {isNativeEnvironment() ? 'Desktop' : 'Web'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex justify-center" title={`ZEREI! v${appVersion}`}>
+            <span className="font-pixel text-[9px] text-slate-500 select-none">v{appVersion}</span>
+          </div>
+        )}
       </div>
     </aside>
   )
