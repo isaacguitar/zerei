@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-electron/
+dist-pc/
+dist-apk/
+.firebase/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.temp
+.DS_Store

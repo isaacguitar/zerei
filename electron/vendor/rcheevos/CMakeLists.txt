@@ -1,0 +1,25 @@
+cmake_minimum_required(VERSION 3.24)
+project(zerei_rcheevos C)
+
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
+file(GLOB_RECURSE RCHEEVOS_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c"
+)
+list(APPEND RCHEEVOS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../../native/retroAchievementsAdapter.c")
+
+add_library(rcheevos SHARED ${RCHEEVOS_SOURCES})
+target_include_directories(rcheevos PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories(rcheevos PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+target_compile_definitions(rcheevos PRIVATE RC_SHARED RC_CLIENT_SUPPORTS_HASH)
+
+set(RCHEEVOS_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../build/native")
+set_target_properties(rcheevos PROPERTIES
+  PREFIX ""
+  OUTPUT_NAME "rcheevos"
+  RUNTIME_OUTPUT_DIRECTORY "${RCHEEVOS_OUTPUT_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${RCHEEVOS_OUTPUT_DIR}"
+  ARCHIVE_OUTPUT_DIRECTORY "${RCHEEVOS_OUTPUT_DIR}"
+  ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${RCHEEVOS_OUTPUT_DIR}"
+)
